@@ -28,6 +28,8 @@ CREATE TABLE `projects` (
 CREATE UNIQUE INDEX `projects_identifier_unique` ON `projects` (`identifier`);--> statement-breakpoint
 CREATE INDEX `creator_lower_idx_for_search` ON `projects` (`creator_lower`);--> statement-breakpoint
 CREATE INDEX `link_lower_idx_for_search` ON `projects` (`link_lower`);--> statement-breakpoint
+CREATE INDEX `season_idx` ON `projects` (`season`);--> statement-breakpoint
+CREATE INDEX `order_idx` ON `projects` (`order`);--> statement-breakpoint
 CREATE TABLE `subscribers` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text NOT NULL,

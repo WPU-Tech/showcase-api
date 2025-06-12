@@ -73,8 +73,8 @@ export class Scraper {
     }
 
     private async loadCache(): Promise<void> {
+        this.cache.clear();
         const cache = await db.select().from(cacheTable);
-
         cache.forEach(({ name, hash, type, updated_at }) => {
             this.cache.set(`${type}:${name}`, { hash, updated_at });
         });
@@ -104,7 +104,7 @@ export class Scraper {
             await this.processWeek(week, branch, seasonNumber);
         }
 
-        await this.updateBranchCache(branch, contentHash);
+        await this.updateCache(CACHE_TYPES.BRANCH, branch, contentHash);
         console.log(`Cache updated for branch: ${branch}`);
     }
 
@@ -127,8 +127,6 @@ export class Scraper {
         for (const project of week.projects) {
             const projectHash = this.generateHash(project.block);
             const identifier = this.generateProjectIdentifier(branch, project.order, week.date);
-
-            console.log('project', this.cache.get(`${CACHE_TYPES.PROJECT}:${identifier}`)?.hash, projectHash);
 
             if (this.cache.get(`${CACHE_TYPES.PROJECT}:${identifier}`)?.hash === projectHash) continue;
 
@@ -166,23 +164,7 @@ export class Scraper {
                                 set: { ...project, updated_at: now },
                             });
 
-                        await tx
-                            .insert(cacheTable)
-                            .values({
-                                hash: projectHash,
-                                type: CACHE_TYPES.PROJECT,
-                                name: project.identifier,
-                                updated_at: now,
-                            })
-                            .onConflictDoUpdate({
-                                target: [cacheTable.name, cacheTable.type],
-                                set: { hash: projectHash, updated_at: now },
-                            });
-
-                        this.cache.set(`${CACHE_TYPES.PROJECT}:${project.identifier}`, {
-                            hash: projectHash,
-                            updated_at: now,
-                        });
+                        await this.updateCache(CACHE_TYPES.PROJECT, project.identifier, projectHash);
                     } catch (error) {
                         console.error(`Failed to insert/update project ${project.identifier}:`, error);
                         throw error;
@@ -233,16 +215,18 @@ export class Scraper {
         return `${branch}-${date.toISOString().split('T')[0]}-${order}`.replace(/-/g, '_');
     }
 
-    private async updateBranchCache(name: string, hash: string): Promise<void> {
+    private async updateCache(type: string, name: string, hash: string): Promise<void> {
         const now = new Date().toISOString();
+
         await db
             .insert(cacheTable)
-            .values({ type: CACHE_TYPES.BRANCH, name, hash, updated_at: now })
+            .values({ type: type, name, hash })
             .onConflictDoUpdate({
                 target: [cacheTable.type, cacheTable.name],
                 set: { hash, updated_at: now },
             });
-        this.cache.set(`${CACHE_TYPES.BRANCH}:${name}`, { hash, updated_at: now });
+
+        this.cache.set(`${type}:${name}`, { hash, updated_at: now });
     }
 
     private async getBranches(): Promise<string[]> {

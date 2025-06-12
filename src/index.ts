@@ -3,7 +3,8 @@ import { config } from './utils/config';
 import { scraper } from './utils/scraper';
 import { db } from './db';
 import { projectsTable } from './db/schema';
-import { eq, like, or, sql } from 'drizzle-orm';
+import { and, eq, like, or, sql } from 'drizzle-orm';
+import { getMetadata, transformProjects } from './utils/project';
 
 const app = new Elysia({
     prefix: '/api',
@@ -22,18 +23,35 @@ const app = new Elysia({
     })
     .get('/projects', async ({ query }) => {
         const search = query.search || '';
+        const season = isNaN(parseInt(query.season)) ? 1 : parseInt(query.season);
+        const raw = query.raw === 'true';
 
-        const projects = await db
+        const queryBuilder = db
             .select()
             .from(projectsTable)
             .where(
-                or(
-                    like(projectsTable.link_lower, sql`LOWER('%${search}%')`),
-                    like(projectsTable.creator_lower, sql`LOWER('%${search}%')`)
+                and(
+                    or(
+                        like(projectsTable.link_lower, sql`'%' || LOWER(${search}) || '%'`),
+                        like(projectsTable.creator_lower, sql`'%' || LOWER(${search}) || '%'`)
+                    ),
+                    eq(projectsTable.season, season)
                 )
-            );
+            )
+            .orderBy(projectsTable.season, sql`datetime(${projectsTable.date})`, projectsTable.order);
 
-        return { message: 'Success', status: true, data: projects };
+        const projects = await queryBuilder;
+
+        return {
+            message: 'Success',
+            status: true,
+            data: raw ? projects : transformProjects(projects),
+        };
+    })
+    .get('/metadata', async () => {
+        const projects = await db.select().from(projectsTable);
+
+        return getMetadata(projects);
     })
     .listen(config.PORT);
 

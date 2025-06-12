@@ -92,19 +92,18 @@ function extractProjects(weekContent: string): RawProject[] {
         for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
 
+            if (!creator && /\*\*(.+?)\*\*/.test(line)) {
+                creator = line.match(/\*\*(.+?)\*\*/)?.[1].trim() ?? null;
+                continue;
+            }
+
             if (/^\[https?:\/\/.*\]$/.test(line)) {
                 extraLinks.push(line.slice(1, -1));
             } else {
-                const creatorMatch = line.match(/^\*\*(.*?)\*\*$/);
-                if (creatorMatch) {
-                    creator = creatorMatch[1].trim();
-                } else {
-                    descriptionLines.push(line);
-                }
+                descriptionLines.push(line);
             }
         }
 
-        // Gabung link tambahan ke atas deskripsi
         const combinedDescription = [...extraLinks.map((url) => url), ...descriptionLines].join('\n');
 
         projects.push({

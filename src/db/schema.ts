@@ -27,6 +27,8 @@ export const projectsTable = sqliteTable(
     (t) => [
         index('creator_lower_idx_for_search').on(t.creator_lower),
         index('link_lower_idx_for_search').on(t.link_lower),
+        index('season_idx').on(t.season),
+        index('order_idx').on(t.order),
     ]
 );
 
@@ -59,4 +61,5 @@ export const subscribersTable = sqliteTable('subscribers', {
 });
 
 export type CreateProject = InferInsertModel<typeof projectsTable>;
+export type SelectProject = InferSelectModel<typeof projectsTable>;
 export type SelectCache = InferSelectModel<typeof cacheTable>;

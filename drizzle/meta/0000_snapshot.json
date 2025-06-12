@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "dde4a343-91ed-41ff-9a11-f2aa37bfffa5",
+  "id": "db120612-9560-4c5e-8427-559dcd082d6f",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "cache": {
@@ -188,6 +188,20 @@
           "name": "link_lower_idx_for_search",
           "columns": [
             "link_lower"
+          ],
+          "isUnique": false
+        },
+        "season_idx": {
+          "name": "season_idx",
+          "columns": [
+            "season"
+          ],
+          "isUnique": false
+        },
+        "order_idx": {
+          "name": "order_idx",
+          "columns": [
+            "order"
           ],
           "isUnique": false
         }
