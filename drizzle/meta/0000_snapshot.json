@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "9c517648-61e2-4a8d-8186-50366846c265",
+  "id": "dde4a343-91ed-41ff-9a11-f2aa37bfffa5",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "cache": {
@@ -42,6 +42,13 @@
           "notNull": true,
           "autoincrement": false,
           "default": "(CURRENT_TIMESTAMP)"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
         }
       },
       "indexes": {
@@ -132,6 +139,20 @@
           "notNull": false,
           "autoincrement": false
         },
+        "creator_lower": {
+          "name": "creator_lower",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "link_lower": {
+          "name": "link_lower",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -155,6 +176,20 @@
             "identifier"
           ],
           "isUnique": true
+        },
+        "creator_lower_idx_for_search": {
+          "name": "creator_lower_idx_for_search",
+          "columns": [
+            "creator_lower"
+          ],
+          "isUnique": false
+        },
+        "link_lower_idx_for_search": {
+          "name": "link_lower_idx_for_search",
+          "columns": [
+            "link_lower"
+          ],
+          "isUnique": false
         }
       },
       "foreignKeys": {},

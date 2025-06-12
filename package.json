@@ -6,22 +6,19 @@
         "dev": "bun run --watch src/index.ts",
         "build": "bun build --compile --minify --target bun --outfile server ./src/index.ts",
         "db:generate": "bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts",
-        "db:migrate": "bun run ./src/db/migrate.ts"
+        "db:migrate": "bun run ./scripts/migrator.ts"
     },
     "dependencies": {
         "@octokit/rest": "^22.0.0",
         "@paralleldrive/cuid2": "^2.2.2",
         "capture-website": "^4.2.0",
         "date-fns": "^4.1.0",
-        "dotenv": "^16.5.0",
         "drizzle-orm": "^0.44.2",
         "elysia": "latest",
         "envalid": "^8.0.0",
         "isomorphic-dompurify": "^2.25.0",
-        "lowdb": "^7.0.1",
         "marked": "^15.0.12",
-        "p-limit": "^6.2.0",
-        "pageres": "^8.1.0"
+        "p-limit": "^6.2.0"
     },
     "devDependencies": {
         "@types/bun": "^1.2.15",

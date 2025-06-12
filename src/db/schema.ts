@@ -1,25 +1,34 @@
-import { int, sqliteTable, unique, text } from 'drizzle-orm/sqlite-core';
+import { int, sqliteTable, unique, text, index } from 'drizzle-orm/sqlite-core';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 
-export const projectsTable = sqliteTable('projects', {
-    id: text()
-        .$defaultFn(() => createId())
-        .primaryKey(),
-    identifier: text().notNull().unique(),
-    order: int().notNull(),
-    branch: text().notNull(),
-    season: int().notNull(),
-    date: text().notNull(),
-    creator: text(),
-    link: text().notNull(),
-    description: text().notNull(),
-    screenshot: text(),
-    created_at: text()
-        .default(sql`(CURRENT_TIMESTAMP)`)
-        .notNull(),
-    updated_at: text(),
-});
+export const projectsTable = sqliteTable(
+    'projects',
+    {
+        id: text()
+            .$defaultFn(() => createId())
+            .primaryKey(),
+        identifier: text().notNull().unique(),
+        order: int().notNull(),
+        branch: text().notNull(),
+        season: int().notNull(),
+        date: text().notNull(),
+        creator: text(),
+        link: text().notNull(),
+        description: text().notNull(),
+        screenshot: text(),
+        creator_lower: text(), // for search optimization
+        link_lower: text().notNull(), // for search optimization
+        created_at: text()
+            .default(sql`(CURRENT_TIMESTAMP)`)
+            .notNull(),
+        updated_at: text(),
+    },
+    (t) => [
+        index('creator_lower_idx_for_search').on(t.creator_lower),
+        index('link_lower_idx_for_search').on(t.link_lower),
+    ]
+);
 
 export const cacheTable = sqliteTable(
     'cache',
@@ -33,6 +42,7 @@ export const cacheTable = sqliteTable(
         created_at: text()
             .default(sql`(CURRENT_TIMESTAMP)`)
             .notNull(),
+        updated_at: text(),
     },
     (t) => [unique().on(t.type, t.name)]
 );

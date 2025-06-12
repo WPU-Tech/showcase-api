@@ -1,6 +1,9 @@
 import { Elysia } from 'elysia';
 import { config } from './utils/config';
 import { scraper } from './utils/scraper';
+import { db } from './db';
+import { projectsTable } from './db/schema';
+import { eq, like, or, sql } from 'drizzle-orm';
 
 const app = new Elysia({
     prefix: '/api',
@@ -13,13 +16,24 @@ const app = new Elysia({
             return status(401);
         }
 
-        if (scraper.isScraping) {
-            return { message: 'Scraping is already in progress' };
-        }
-
         scraper.scrapeProject();
 
         return { message: 'Scraping in progress' };
+    })
+    .get('/projects', async ({ query }) => {
+        const search = query.search || '';
+
+        const projects = await db
+            .select()
+            .from(projectsTable)
+            .where(
+                or(
+                    like(projectsTable.link_lower, sql`LOWER('%${search}%')`),
+                    like(projectsTable.creator_lower, sql`LOWER('%${search}%')`)
+                )
+            );
+
+        return { message: 'Success', status: true, data: projects };
     })
     .listen(config.PORT);
 

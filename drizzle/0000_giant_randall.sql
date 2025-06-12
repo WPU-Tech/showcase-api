@@ -3,7 +3,8 @@ CREATE TABLE `cache` (
 	`type` text NOT NULL,
 	`name` text NOT NULL,
 	`hash` text NOT NULL,
-	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL
+	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
+	`updated_at` text
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `cache_type_name_unique` ON `cache` (`type`,`name`);--> statement-breakpoint
@@ -18,11 +19,15 @@ CREATE TABLE `projects` (
 	`link` text NOT NULL,
 	`description` text NOT NULL,
 	`screenshot` text,
+	`creator_lower` text,
+	`link_lower` text NOT NULL,
 	`created_at` text DEFAULT (CURRENT_TIMESTAMP) NOT NULL,
 	`updated_at` text
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `projects_identifier_unique` ON `projects` (`identifier`);--> statement-breakpoint
+CREATE INDEX `creator_lower_idx_for_search` ON `projects` (`creator_lower`);--> statement-breakpoint
+CREATE INDEX `link_lower_idx_for_search` ON `projects` (`link_lower`);--> statement-breakpoint
 CREATE TABLE `subscribers` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text NOT NULL,

@@ -17,7 +17,7 @@ const INDONESIAN_MONTHS = [
     'desember',
 ];
 
-interface RawProject {
+export interface RawProject {
     block: string;
     order: number;
     link: string;
@@ -25,7 +25,7 @@ interface RawProject {
     description: string;
 }
 
-interface RawWeek {
+export interface RawWeek {
     date: Date;
     projects: RawProject[];
 }
@@ -74,17 +74,44 @@ export function parseMarkdownContent(content: string): RawWeek[] {
  */
 function extractProjects(weekContent: string): RawProject[] {
     const projects: RawProject[] = [];
-    const projectRegex =
-        /(\d+)\.\s+\[(.*?)\](?:\s*\n)?(?:\*\*(.*?)\*\*)?([\s\S]*?)(?=(?:\n\d+\.\s+\[|\n<br>\s*\n<br>|\n<br>\s*$|$))/g;
+    const projectBlocks = weekContent.split(/\n(?=\d+\.\s+\[)/); // pisah antar project
 
-    let match;
-    while ((match = projectRegex.exec(weekContent)) !== null) {
-        const [block, orderStr, link, creator, descriptionRaw] = match;
+    for (const block of projectBlocks) {
+        const lines = block.trim().split('\n');
+        const orderMatch = lines[0].match(/^(\d+)\.\s+\[(.*?)\]/);
+
+        if (!orderMatch) continue;
+
+        const order = parseInt(orderMatch[1]);
+        const link = orderMatch[2].trim();
+
+        let creator = null;
+        let descriptionLines = [];
+        let extraLinks = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            if (/^\[https?:\/\/.*\]$/.test(line)) {
+                extraLinks.push(line.slice(1, -1));
+            } else {
+                const creatorMatch = line.match(/^\*\*(.*?)\*\*$/);
+                if (creatorMatch) {
+                    creator = creatorMatch[1].trim();
+                } else {
+                    descriptionLines.push(line);
+                }
+            }
+        }
+
+        // Gabung link tambahan ke atas deskripsi
+        const combinedDescription = [...extraLinks.map((url) => url), ...descriptionLines].join('\n');
+
         projects.push({
-            order: parseInt(orderStr),
-            link: link.trim(),
+            order,
+            link,
             creator: creator ? creator.trim() : null,
-            description: formatMarkdown(descriptionRaw),
+            description: formatMarkdown(combinedDescription.trim()),
             block,
         });
     }
@@ -98,17 +125,10 @@ function extractProjects(weekContent: string): RawProject[] {
  * @returns Sanitized HTML string
  */
 function formatMarkdown(markdown: string): string {
-    marked.setOptions({
-        breaks: true,
-        gfm: true,
-        async: false,
-    });
-
     const cleanMarkdown = markdown
         .split('\n')
         .map((line) => line.trim())
-        .join('\n')
-        .replace(/<br\/?>/gi, '');
+        .join('\n');
 
-    return DOMPurify.sanitize(marked(cleanMarkdown) as string);
+    return DOMPurify.sanitize((marked.parse(cleanMarkdown) as string).replace(/<br\/?>/gi, ''));
 }
