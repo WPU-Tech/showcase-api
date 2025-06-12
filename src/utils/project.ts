@@ -26,6 +26,7 @@ export const getMetadata = (projects: SelectProject[]) => {
     const stats = {
         totalProjects: projects.length,
         creators: new Set<string>(),
+        episodes: new Set<string>(),
         links: new Set<string>(),
         seasonStats: new Map<number, number>(),
         earliestDate: null as string | null,
@@ -35,6 +36,7 @@ export const getMetadata = (projects: SelectProject[]) => {
     for (const project of projects) {
         stats.creators.add(project.creator?.trim().toLowerCase() || '');
         stats.links.add(project.link?.trim().toLowerCase() || '');
+        stats.episodes.add(project.date);
 
         stats.seasonStats.set(project.season, (stats.seasonStats.get(project.season) || 0) + 1);
 
@@ -51,6 +53,7 @@ export const getMetadata = (projects: SelectProject[]) => {
         totalSeasons: stats.seasonStats.size,
         creators: [...stats.creators].filter(Boolean),
         links: [...stats.links].filter(Boolean),
+        episodes: [...stats.episodes],
         seasonStats: [...stats.seasonStats.entries()].map(([season, count]) => ({ season, count })),
         earliestDate: stats.earliestDate,
         latestDate: stats.latestDate,

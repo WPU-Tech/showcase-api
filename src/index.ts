@@ -5,11 +5,11 @@ import { db } from './db';
 import { projectsTable } from './db/schema';
 import { and, eq, like, or, sql } from 'drizzle-orm';
 import { getMetadata, transformProjects } from './utils/project';
+import { staticPlugin } from '@elysiajs/static';
 
-const app = new Elysia({
-    prefix: '/api',
-})
-    .get('/scrape', async ({ request, status }) => {
+const app = new Elysia()
+    .use(staticPlugin({ assets: 'screenshots', prefix: '/screenshots' }))
+    .post('/api/scrape', async ({ request, status }) => {
         const availableKeys = config.SCRAPE_API_KEY.split(',');
         const apiKey = request.headers.get('x-scraper-api-key');
 
@@ -21,12 +21,12 @@ const app = new Elysia({
 
         return { message: 'Scraping in progress' };
     })
-    .get('/projects', async ({ query }) => {
+    .get('/api/projects', async ({ query }) => {
         const search = query.search || '';
         const season = isNaN(parseInt(query.season)) ? 1 : parseInt(query.season);
         const raw = query.raw === 'true';
 
-        const queryBuilder = db
+        const projects = await db
             .select()
             .from(projectsTable)
             .where(
@@ -40,18 +40,25 @@ const app = new Elysia({
             )
             .orderBy(projectsTable.season, sql`datetime(${projectsTable.date})`, projectsTable.order);
 
-        const projects = await queryBuilder;
+        const data = raw ? projects : projects.length ? transformProjects(projects) : {};
 
         return {
             message: 'Success',
             status: true,
-            data: raw ? projects : transformProjects(projects),
+            data,
         };
     })
-    .get('/metadata', async () => {
-        const projects = await db.select().from(projectsTable);
+    .get('/api/metadata', async () => {
+        const projects = await db
+            .select()
+            .from(projectsTable)
+            .orderBy(projectsTable.season, sql`datetime(${projectsTable.date})`, projectsTable.order);
 
-        return getMetadata(projects);
+        return {
+            message: 'Success',
+            status: true,
+            data: getMetadata(projects),
+        };
     })
     .listen(config.PORT);
 

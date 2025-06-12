@@ -1,6 +1,5 @@
 import { db } from '@/db';
 import { cacheTable, CreateProject, projectsTable } from '@/db/schema';
-import { and, eq } from 'drizzle-orm';
 import captureWebsite from 'capture-website';
 import { stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
