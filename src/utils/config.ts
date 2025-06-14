@@ -9,7 +9,7 @@ export const config = cleanEnv(process.env, {
     GITHUB_REPO_OWNER: str({ default: 'sandhikagalih' }),
     GITHUB_REPO_NAME: str({ default: 'project-kalian' }),
 
-    DB_FILE_NAME: str({ default: 'db.sqlite' }),
+    DATABASE_URL: str(),
 
     NODE_ENV: str({ choices: ['development', 'test', 'production', 'staging'] }),
 

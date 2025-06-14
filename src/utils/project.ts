@@ -5,10 +5,10 @@ export const transformProjects = (dataArray: SelectProject[]) => {
 
     for (const project of dataArray) {
         const { date } = project;
-        if (!weekMap.has(date)) {
-            weekMap.set(date, []);
+        if (!weekMap.has(date.toISOString())) {
+            weekMap.set(date.toISOString(), []);
         }
-        weekMap.get(date)!.push(project);
+        weekMap.get(date.toISOString())!.push(project);
     }
 
     const weeks = [...weekMap.entries()]
@@ -29,30 +29,31 @@ export const getMetadata = (projects: SelectProject[]) => {
         episodes: new Set<string>(),
         links: new Set<string>(),
         seasonStats: new Map<number, number>(),
-        earliestDate: null as string | null,
-        latestDate: null as string | null,
+        earliestDate: null as Date | null,
+        latestDate: null as Date | null,
     };
 
     for (const project of projects) {
         stats.creators.add(project.creator?.trim().toLowerCase() || '');
         stats.links.add(project.link?.trim().toLowerCase() || '');
-        stats.episodes.add(project.date);
+        stats.episodes.add(project.date.toISOString());
 
         stats.seasonStats.set(project.season, (stats.seasonStats.get(project.season) || 0) + 1);
 
-        if (!stats.earliestDate || project.date < stats.earliestDate) {
-            stats.earliestDate = project.date;
+        const dateAsDate = new Date(project.date);
+        if (!stats.earliestDate || dateAsDate < stats.earliestDate) {
+            stats.earliestDate = dateAsDate;
         }
-        if (!stats.latestDate || project.date > stats.latestDate) {
-            stats.latestDate = project.date;
+        if (!stats.latestDate || dateAsDate > stats.latestDate) {
+            stats.latestDate = dateAsDate;
         }
     }
 
     return {
         totalProjects: stats.totalProjects,
         totalSeasons: stats.seasonStats.size,
-        creators: [...stats.creators].filter(Boolean),
-        links: [...stats.links].filter(Boolean),
+        creators: [...stats.creators],
+        links: [...stats.links],
         episodes: [...stats.episodes],
         seasonStats: [...stats.seasonStats.entries()].map(([season, count]) => ({ season, count })),
         earliestDate: stats.earliestDate,

@@ -5,8 +5,7 @@
         "test": "echo \"Error: no test specified\" && exit 1",
         "dev": "bun run --watch src/index.ts",
         "build": "bun build --compile --minify --target bun --outfile server ./src/index.ts",
-        "db:generate": "bunx drizzle-kit generate --dialect sqlite --schema ./src/db/schema.ts",
-        "db:migrate": "bun run ./scripts/migrator.ts",
+        "db:push": "bunx drizzle-kit push",
         "format": "prettier --write ."
     },
     "dependencies": {
@@ -20,7 +19,8 @@
         "envalid": "^8.0.0",
         "isomorphic-dompurify": "^2.25.0",
         "marked": "^15.0.12",
-        "p-limit": "^6.2.0"
+        "p-limit": "^6.2.0",
+        "pg": "^8.16.0"
     },
     "devDependencies": {
         "@types/bun": "^1.2.16",

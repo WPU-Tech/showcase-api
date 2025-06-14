@@ -17,7 +17,7 @@ const CACHE_TYPES = {
 
 const SCREENSHOT = {
     EXTENSION: '.webp',
-    PREFIX: 'screenshots/',
+    PREFIX: 'public/screenshots/',
     CACHE_DURATION: 24 * 60 * 60 * 1000,
     CAPTURE_OPTIONS: {
         delay: 2,
@@ -34,7 +34,7 @@ const SCREENSHOT = {
 type Project = CreateProject & { block: string };
 interface CacheEntry {
     hash: string;
-    updated_at: string | null;
+    updated_at: Date | null;
 }
 
 let isScraping = false;
@@ -68,7 +68,7 @@ const captureScreenshot = async (project: RawProject, identifier: string) => {
 };
 
 const updateCache = async (type: string, name: string, hash: string) => {
-    const now = new Date().toISOString();
+    const now = new Date();
     await db
         .insert(cacheTable)
         .values({ type, name, hash })
@@ -83,7 +83,7 @@ const insertProjects = async (projects: Project[]) => {
     if (!projects.length) return;
     console.log(`Inserting ${projects.length} projects...`);
     await db.transaction(async (tx) => {
-        const now = new Date().toISOString();
+        const now = new Date();
         await Promise.all(
             projects.map((project) =>
                 limit(async () => {
@@ -132,7 +132,7 @@ const processWeek = async (week: RawWeek, branch: string, seasonNumber: number) 
             ...project,
             season: seasonNumber,
             branch,
-            date: week.date.toISOString(),
+            date: week.date,
             identifier,
             screenshot: screenshots.find((s) => s?.identifier === identifier)?.url ?? null,
             block: project.block,

@@ -1,28 +1,26 @@
-import { int, sqliteTable, unique, text, index } from 'drizzle-orm/sqlite-core';
+import { integer, pgTable, timestamp, unique, text, index, varchar } from 'drizzle-orm/pg-core';
 import { createId } from '@paralleldrive/cuid2';
 import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 
-export const projectsTable = sqliteTable(
+export const projectsTable = pgTable(
     'projects',
     {
         id: text()
             .$defaultFn(() => createId())
             .primaryKey(),
-        identifier: text().notNull().unique(),
-        order: int().notNull(),
-        branch: text().notNull(),
-        season: int().notNull(),
-        date: text().notNull(),
-        creator: text(),
-        link: text().notNull(),
+        identifier: varchar().notNull().unique(),
+        order: integer().notNull(),
+        branch: varchar().notNull(),
+        season: integer().notNull(),
+        date: timestamp().notNull(),
+        creator: varchar(),
+        link: varchar().notNull(),
         description: text().notNull(),
-        screenshot: text(),
-        creator_lower: text(), // for search optimization
-        link_lower: text().notNull(), // for search optimization
-        created_at: text()
-            .default(sql`(CURRENT_TIMESTAMP)`)
-            .notNull(),
-        updated_at: text(),
+        screenshot: varchar(),
+        creator_lower: varchar(), // for search optimization
+        link_lower: varchar().notNull(), // for search optimization
+        created_at: timestamp().defaultNow().notNull(),
+        updated_at: timestamp(),
     },
     (t) => [
         index('creator_lower_idx_for_search').on(t.creator_lower),
@@ -32,32 +30,28 @@ export const projectsTable = sqliteTable(
     ]
 );
 
-export const cacheTable = sqliteTable(
+export const cacheTable = pgTable(
     'cache',
     {
         id: text()
             .$defaultFn(() => createId())
             .primaryKey(),
-        type: text().notNull(),
-        name: text().notNull(),
-        hash: text().notNull(),
-        created_at: text()
-            .default(sql`(CURRENT_TIMESTAMP)`)
-            .notNull(),
-        updated_at: text(),
+        type: varchar().notNull(),
+        name: varchar().notNull(),
+        hash: varchar().notNull(),
+        created_at: timestamp().defaultNow().notNull(),
+        updated_at: timestamp(),
     },
     (t) => [unique().on(t.type, t.name)]
 );
 
-export const subscribersTable = sqliteTable('subscribers', {
+export const subscribersTable = pgTable('subscribers', {
     id: text()
         .$defaultFn(() => createId())
         .primaryKey(),
-    email: text().notNull(),
-    created_at: text()
-        .default(sql`(CURRENT_TIMESTAMP)`)
-        .notNull(),
-    deleted_at: text(),
+    email: varchar().notNull(),
+    created_at: timestamp().defaultNow().notNull(),
+    deleted_at: timestamp(),
 });
 
 export type CreateProject = InferInsertModel<typeof projectsTable>;

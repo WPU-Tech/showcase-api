@@ -8,7 +8,7 @@ import { staticPlugin } from '@elysiajs/static';
 import { scrapeProject } from './utils/scraper';
 
 const app = new Elysia()
-    .use(staticPlugin({ assets: 'screenshots', prefix: '/screenshots' }))
+    .use(staticPlugin({ assets: 'public', prefix: '/public' }))
     .post('/api/scrape', async ({ request, status }) => {
         const availableKeys = config.SCRAPE_API_KEY.split(',');
         const apiKey = request.headers.get('x-scraper-api-key');
@@ -38,7 +38,7 @@ const app = new Elysia()
                     eq(projectsTable.season, season)
                 )
             )
-            .orderBy(sql`datetime(${projectsTable.date})`, projectsTable.order);
+            .orderBy(projectsTable.date, projectsTable.order);
 
         const data = raw ? projects : projects.length ? transformProjects(projects) : {};
 
@@ -52,7 +52,7 @@ const app = new Elysia()
         const projects = await db
             .select()
             .from(projectsTable)
-            .orderBy(projectsTable.season, sql`datetime(${projectsTable.date})`, projectsTable.order);
+            .orderBy(projectsTable.season, projectsTable.date, projectsTable.order);
 
         return {
             message: 'Success',

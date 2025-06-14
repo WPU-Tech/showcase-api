@@ -45,6 +45,6 @@ package-lock.json
 **/*.bun
 
 # Others
-/screenshots
+/public/screenshots
 /engine.bin
 /*.sqlite
