@@ -1,11 +1,11 @@
 import { Elysia } from 'elysia';
 import { config } from './utils/config';
-import { scraper } from './utils/scraper';
 import { db } from './db';
 import { projectsTable } from './db/schema';
 import { and, eq, like, or, sql } from 'drizzle-orm';
 import { getMetadata, transformProjects } from './utils/project';
 import { staticPlugin } from '@elysiajs/static';
+import { scrapeProject } from './utils/scraper';
 
 const app = new Elysia()
     .use(staticPlugin({ assets: 'screenshots', prefix: '/screenshots' }))
@@ -17,13 +17,13 @@ const app = new Elysia()
             return status(401);
         }
 
-        scraper.scrapeProject();
+        scrapeProject();
 
-        return { message: 'Scraping in progress' };
+        return { message: 'Scraping running' };
     })
     .get('/api/projects', async ({ query }) => {
         const search = query.search || '';
-        const season = isNaN(parseInt(query.season)) ? 1 : parseInt(query.season);
+        const season = isNaN(parseInt(query.season)) ? 5 : parseInt(query.season);
         const raw = query.raw === 'true';
 
         const projects = await db
@@ -38,7 +38,7 @@ const app = new Elysia()
                     eq(projectsTable.season, season)
                 )
             )
-            .orderBy(projectsTable.season, sql`datetime(${projectsTable.date})`, projectsTable.order);
+            .orderBy(sql`datetime(${projectsTable.date})`, projectsTable.order);
 
         const data = raw ? projects : projects.length ? transformProjects(projects) : {};
 

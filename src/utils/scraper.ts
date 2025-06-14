@@ -8,9 +8,8 @@ import crypto from 'crypto';
 import pLimit from 'p-limit';
 import { parseMarkdownContent, RawProject, RawWeek } from './markdown';
 import { config } from './config';
-import { Octokit } from '@octokit/rest';
+import { getBranches, getReadmeContent, getSeasonNumber } from './github';
 
-// Constants
 const CACHE_TYPES = {
     BRANCH: 'branch',
     PROJECT: 'project',
@@ -19,7 +18,7 @@ const CACHE_TYPES = {
 const SCREENSHOT = {
     EXTENSION: '.webp',
     PREFIX: 'screenshots/',
-    CACHE_DURATION: 24 * 60 * 60 * 1000, // 24 hours
+    CACHE_DURATION: 24 * 60 * 60 * 1000,
     CAPTURE_OPTIONS: {
         delay: 2,
         disableAnimations: true,
@@ -32,128 +31,63 @@ const SCREENSHOT = {
     },
 } as const;
 
-type Project = CreateProject & {
-    block: string;
-};
-
+type Project = CreateProject & { block: string };
 interface CacheEntry {
     hash: string;
     updated_at: string | null;
 }
 
-export class Scraper {
-    private isScraping = false;
-    private readonly limit = pLimit(config.CONCURRENCY_LIMIT);
-    private readonly octokit: Octokit;
-    private readonly cache: Map<string, CacheEntry> = new Map();
+let isScraping = false;
+const cache = new Map<string, CacheEntry>();
+const limit = pLimit(config.CONCURRENCY_LIMIT);
 
-    constructor() {
-        this.octokit = new Octokit({ auth: config.GITHUB_TOKEN });
+const generateHash = (content: string) => crypto.createHash('md5').update(content).digest('hex');
+
+const generateProjectIdentifier = (branch: string, order: number, date: Date) =>
+    `${branch}-${date.toISOString().split('T')[0]}-${order}`.replace(/-/g, '_');
+
+const hasRecentScreenshot = async (filePath: string) => {
+    if (!existsSync(filePath)) return false;
+    const stats = await stat(filePath);
+    return Date.now() - stats.mtimeMs < SCREENSHOT.CACHE_DURATION;
+};
+
+const captureScreenshot = async (project: RawProject, identifier: string) => {
+    const fileName = `${SCREENSHOT.PREFIX}${identifier}${SCREENSHOT.EXTENSION}`;
+    const filePath = path.join(process.cwd(), fileName);
+
+    if (await hasRecentScreenshot(filePath)) return { url: fileName, identifier };
+
+    try {
+        await captureWebsite.file(project.link, filePath, SCREENSHOT.CAPTURE_OPTIONS);
+        return { url: fileName, identifier };
+    } catch {
+        console.error(`Failed to capture screenshot for ${project.link}`);
+        return { url: null, identifier };
     }
+};
 
-    async scrapeProject(): Promise<void> {
-        if (this.isScraping) {
-            console.log('Scraping already in progress.');
-            return;
-        }
-
-        this.isScraping = true;
-        await this.loadCache();
-
-        try {
-            const branches = await this.getBranches();
-            await Promise.all(branches.map((branch) => this.processBranch(branch)));
-            console.log('Scraping completed successfully.');
-        } catch (error) {
-            console.error('Scraping failed:', error);
-        } finally {
-            this.isScraping = false;
-        }
-    }
-
-    private async loadCache(): Promise<void> {
-        this.cache.clear();
-        const cache = await db.select().from(cacheTable);
-        cache.forEach(({ name, hash, type, updated_at }) => {
-            this.cache.set(`${type}:${name}`, { hash, updated_at });
+const updateCache = async (type: string, name: string, hash: string) => {
+    const now = new Date().toISOString();
+    await db
+        .insert(cacheTable)
+        .values({ type, name, hash })
+        .onConflictDoUpdate({
+            target: [cacheTable.type, cacheTable.name],
+            set: { hash, updated_at: now },
         });
-    }
+    cache.set(`${type}:${name}`, { hash, updated_at: now });
+};
 
-    private async processBranch(branch: string): Promise<void> {
-        const content = await this.getReadmeContent(branch);
-        if (!content) {
-            console.warn(`No content found for branch: ${branch}`);
-            return;
-        }
-
-        const contentHash = this.generateHash(content);
-        const cacheKey = `${CACHE_TYPES.BRANCH}:${branch}`;
-
-        if (this.cache.get(cacheKey)?.hash === contentHash) {
-            console.log(this.cache.get(cacheKey)?.hash, contentHash);
-            console.log(`Cache hit for branch: ${branch}`);
-            return;
-        }
-
-        console.log(`Processing branch: ${branch}`);
-        const seasonNumber = this.getSeasonNumber(branch);
-        const weeks = parseMarkdownContent(content);
-
-        for (const week of weeks) {
-            await this.processWeek(week, branch, seasonNumber);
-        }
-
-        await this.updateCache(CACHE_TYPES.BRANCH, branch, contentHash);
-        console.log(`Cache updated for branch: ${branch}`);
-    }
-
-    private async processWeek(week: RawWeek, branch: string, seasonNumber: number): Promise<void> {
-        console.log(`Processing week: ${week.date.toLocaleDateString()}`);
-        const projects: Project[] = [];
-        const screenshotTasks = week.projects
-            .map((project) => ({
-                project,
-                identifier: this.generateProjectIdentifier(branch, project.order, week.date),
-            }))
-            .filter(({ identifier, project }) => {
-                const projectHash = this.generateHash(project.block);
-                return this.cache.get(`${CACHE_TYPES.PROJECT}:${identifier}`)?.hash !== projectHash;
-            })
-            .map(({ project, identifier }) => this.limit(() => this.captureScreenshot(project, identifier)));
-
-        const screenshots = await Promise.all(screenshotTasks);
-
-        for (const project of week.projects) {
-            const projectHash = this.generateHash(project.block);
-            const identifier = this.generateProjectIdentifier(branch, project.order, week.date);
-
-            if (this.cache.get(`${CACHE_TYPES.PROJECT}:${identifier}`)?.hash === projectHash) continue;
-
-            projects.push({
-                ...project,
-                season: seasonNumber,
-                branch,
-                date: week.date.toISOString(),
-                identifier,
-                screenshot: screenshots.find((s) => s?.identifier === identifier)?.url ?? null,
-                block: project.block,
-                link_lower: project.link.toLowerCase(),
-                creator_lower: project.creator?.toLowerCase(),
-            });
-        }
-
-        if (projects.length > 0) {
-            await this.insertProjects(projects);
-        }
-    }
-
-    private async insertProjects(projects: Project[]): Promise<void> {
-        console.log(`Inserting ${projects.length} projects into the database...`);
-        await db.transaction(async (tx) => {
-            const now = new Date().toISOString();
-            const insertTasks = projects.map((project) =>
-                this.limit(async () => {
-                    const projectHash = this.generateHash(project.block);
+const insertProjects = async (projects: Project[]) => {
+    if (!projects.length) return;
+    console.log(`Inserting ${projects.length} projects...`);
+    await db.transaction(async (tx) => {
+        const now = new Date().toISOString();
+        await Promise.all(
+            projects.map((project) =>
+                limit(async () => {
+                    const projectHash = generateHash(project.block);
                     try {
                         await tx
                             .insert(projectsTable)
@@ -162,102 +96,98 @@ export class Scraper {
                                 target: [projectsTable.identifier],
                                 set: { ...project, updated_at: now },
                             });
-
-                        await this.updateCache(CACHE_TYPES.PROJECT, project.identifier, projectHash);
+                        await updateCache(CACHE_TYPES.PROJECT, project.identifier, projectHash);
                     } catch (error) {
-                        console.error(`Failed to insert/update project ${project.identifier}:`, error);
+                        console.error(`Failed to insert project ${project.identifier}:`, error);
                         throw error;
                     }
                 })
-            );
+            )
+        );
+    });
+    console.log(`Inserted ${projects.length} projects.`);
+};
 
-            await Promise.all(insertTasks);
+const processWeek = async (week: RawWeek, branch: string, seasonNumber: number) => {
+    const projects: Project[] = [];
+    const screenshotTasks = week.projects
+        .map((project) => ({
+            project,
+            identifier: generateProjectIdentifier(branch, project.order, week.date),
+        }))
+        .filter(
+            ({ identifier, project }) =>
+                cache.get(`${CACHE_TYPES.PROJECT}:${identifier}`)?.hash !== generateHash(project.block)
+        )
+        .map(({ project, identifier }) => limit(() => captureScreenshot(project, identifier)));
+
+    const screenshots = await Promise.all(screenshotTasks);
+
+    for (const project of week.projects) {
+        const identifier = generateProjectIdentifier(branch, project.order, week.date);
+        const projectHash = generateHash(project.block);
+        if (cache.get(`${CACHE_TYPES.PROJECT}:${identifier}`)?.hash === projectHash) continue;
+
+        projects.push({
+            ...project,
+            season: seasonNumber,
+            branch,
+            date: week.date.toISOString(),
+            identifier,
+            screenshot: screenshots.find((s) => s?.identifier === identifier)?.url ?? null,
+            block: project.block,
+            link_lower: project.link.toLowerCase(),
+            creator_lower: project.creator?.toLowerCase(),
         });
-        console.log(`Successfully inserted/updated ${projects.length} projects.`);
     }
 
-    private async captureScreenshot(
-        project: RawProject,
-        identifier: string
-    ): Promise<{ url: string | null; identifier: string }> {
-        const fileName = `${SCREENSHOT.PREFIX}${identifier}${SCREENSHOT.EXTENSION}`;
-        const filePath = path.join(process.cwd(), fileName);
+    await insertProjects(projects);
+};
 
-        if (await this.hasRecentScreenshot(filePath)) {
-            return { url: fileName, identifier };
-        }
-
-        try {
-            await captureWebsite.file(project.link, filePath, SCREENSHOT.CAPTURE_OPTIONS);
-            return { url: fileName, identifier };
-        } catch (error) {
-            console.error(`Failed to capture screenshot for ${project.link}`);
-            return { url: null, identifier };
-        }
+const processBranch = async (branch: string) => {
+    const content = await getReadmeContent(branch);
+    if (!content) {
+        console.warn(`No content for branch: ${branch}`);
+        return;
     }
 
-    private async hasRecentScreenshot(filePath: string): Promise<boolean> {
-        if (!existsSync(filePath)) return false;
-        const stats = await stat(filePath);
-        return Date.now() - stats.mtimeMs < SCREENSHOT.CACHE_DURATION;
+    const contentHash = generateHash(content);
+    const cacheKey = `${CACHE_TYPES.BRANCH}:${branch}`;
+    if (cache.get(cacheKey)?.hash === contentHash) {
+        console.log(`Cache hit for branch: ${branch}`);
+        return;
     }
 
-    private getSeasonNumber(branch: string): number {
-        return branch === 'main' ? 1 : parseInt(branch.split('-')[1], 10);
+    console.log(`Processing branch: ${branch}`);
+    const seasonNumber = getSeasonNumber(branch);
+    const weeks = parseMarkdownContent(content);
+    for (const week of weeks) await processWeek(week, branch, seasonNumber);
+    await updateCache(CACHE_TYPES.BRANCH, branch, contentHash);
+};
+
+const loadCache = async () => {
+    cache.clear();
+    const cacheData = await db.select().from(cacheTable);
+    cacheData.forEach(({ name, hash, type, updated_at }) => {
+        cache.set(`${type}:${name}`, { hash, updated_at });
+    });
+};
+
+export const scrapeProject = async () => {
+    if (isScraping) {
+        console.log('Scraping in progress.');
+        return;
     }
 
-    private generateHash(content: string): string {
-        return crypto.createHash('md5').update(content).digest('hex');
+    isScraping = true;
+    try {
+        await loadCache();
+        const branches = await getBranches();
+        await Promise.all(branches.map(processBranch));
+        console.log('Scraping completed.');
+    } catch (error) {
+        console.error('Scraping failed:', error);
+    } finally {
+        isScraping = false;
     }
-
-    private generateProjectIdentifier(branch: string, order: number, date: Date): string {
-        return `${branch}-${date.toISOString().split('T')[0]}-${order}`.replace(/-/g, '_');
-    }
-
-    private async updateCache(type: string, name: string, hash: string): Promise<void> {
-        const now = new Date().toISOString();
-
-        await db
-            .insert(cacheTable)
-            .values({ type: type, name, hash })
-            .onConflictDoUpdate({
-                target: [cacheTable.type, cacheTable.name],
-                set: { hash, updated_at: now },
-            });
-
-        this.cache.set(`${type}:${name}`, { hash, updated_at: now });
-    }
-
-    private async getBranches(): Promise<string[]> {
-        const { data } = await this.octokit.repos.listBranches({
-            owner: config.GITHUB_REPO_OWNER,
-            repo: config.GITHUB_REPO_NAME,
-        });
-
-        return data
-            .map((branch) => branch.name)
-            .filter((name) => name === 'main' || name.startsWith('season-'))
-            .sort((a, b) => {
-                if (a === 'main') return -1;
-                if (b === 'main') return 1;
-                return parseInt(a.split('-')[1], 10) - parseInt(b.split('-')[1], 10);
-            });
-    }
-
-    private async getReadmeContent(branch: string): Promise<string | null> {
-        try {
-            const { data } = await this.octokit.repos.getContent({
-                owner: config.GITHUB_REPO_OWNER,
-                repo: config.GITHUB_REPO_NAME,
-                path: 'README.md',
-                ref: branch,
-            });
-            return 'content' in data ? Buffer.from(data.content, 'base64').toString() : null;
-        } catch (error) {
-            console.error(`Failed to get README for branch ${branch}:`, error);
-            return null;
-        }
-    }
-}
-
-export const scraper = new Scraper();
+};

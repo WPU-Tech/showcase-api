@@ -23,7 +23,7 @@
         "p-limit": "^6.2.0"
     },
     "devDependencies": {
-        "@types/bun": "^1.2.15",
+        "@types/bun": "^1.2.16",
         "bun-types": "latest",
         "drizzle-kit": "^0.31.1",
         "prettier": "^3.5.3"
